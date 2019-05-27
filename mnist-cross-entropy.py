@@ -90,6 +90,8 @@ with tf.name_scope('loss') as scope:
     # cross_entoropy = -y_ * tf.log(y_conv) - (1 - y_ ) * tf.log(1 - y_conv)
     # classification problem use only the first term on above
     cross_entoropy = -tf.reduce_sum(y_ * tf.log(y_conv))
+    tf.summary.scalar('loss', cross_entoropy)
+
 with tf.name_scope('training') as scope:
     # GradientDescentOptimizer
     # Adam algorithm
@@ -102,6 +104,10 @@ with tf.name_scope('predict') as scope:
     predict_step = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
     # reduce_mean: calculate the mean value in all the array
     accuracy_step = tf.reduce_mean(tf.cast(predict_step, tf.float32))
+    tf.summary.scalar('accuracy', accuracy_step)
+
+# For display
+summary = tf.summary.merge_all()
 
 # setting of feed_dict (parameter)
 def set_feed(images, labels, prob):
@@ -126,10 +132,12 @@ with tf.Session() as sess:
         fd = set_feed(batch[0], batch[1], 0.5)
         _, loss = sess.run([train_step, cross_entoropy], feed_dict=fd)
         if step % 100 == 0:
-            acc = sess.run(accuracy_step, feed_dict=test_fd)
+            acc, w_summary = sess.run([accuracy_step, summary], feed_dict=test_fd)
             print("step=", step, "loss=", loss, "acc=", acc)
+            tw.add_summary(w_summary, step)
 
-    # show the result
+
+    # show the final result
     acc = sess.run(accuracy_step, feed_dict=test_fd)
     print("accuracy rate=", acc)
 
