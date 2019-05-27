@@ -63,7 +63,7 @@ with tf.name_scope('fully_connected') as scope:
     # 2 times Pooling, and the image size is 28->14->7
     # 64 number of filters
     n = 7 * 7 * 64
-    # 1024 number of neuron (in), 10 number of neuron (output)
+    # n = 7 * 7 * 64 (in), 1024 number of neuron (out)
     W_fc = weight_variable('fc', [n, 1024])
     b_fc = bias_variable('fc', 1024)
     h_pool2_flat = tf.reshape(h_pool2, [-1, n])

@@ -1,15 +1,41 @@
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
+import numpy as np
 
 # reading MNIST data via tensorflow function
 mnist = input_data.read_data_sets("mnist/", one_hot=True)
 
 pixels = 28 * 28 # 28x28 pixel
 nums = 10 # 10 class(0-9 digit)
+bit_length = 15
+
+# label # pn-code -------------------------------------------->
+# 0# -1  -1  -1   1  -1  -1   1   1  -1   1  -1   1   1   1   1
+# 1# -1  -1   1  -1  -1   1   1  -1   1  -1   1   1   1   1  -1
+# 2# -1   1  -1  -1   1   1  -1   1  -1   1   1   1   1  -1  -1
+# 3#  1  -1  -1   1   1  -1   1  -1   1   1   1   1  -1  -1  -1
+# 4# -1  -1   1   1  -1   1  -1   1   1   1   1  -1  -1  -1   1
+# 5# -1   1   1  -1   1  -1   1   1   1   1  -1  -1  -1   1  -1
+# 6#  1   1  -1   1  -1   1   1   1   1  -1  -1  -1   1  -1  -1
+# 7#  1  -1   1  -1   1   1   1   1  -1  -1  -1   1  -1  -1   1
+# 8# -1   1  -1   1   1   1   1  -1  -1  -1   1  -1  -1   1   1
+# 9#  1  -1   1   1   1   1  -1  -1  -1   1  -1  -1   1   1  -1
+pncode0 = np.array([-1,  -1,  -1,   1,  -1,  -1,   1,   1,  -1,   1,  -1,   1,   1,   1,   1], dtype = 'float')
+pncode1 = np.array([-1,  -1,   1,  -1,  -1,   1,   1,  -1,   1,  -1,   1,   1,   1,   1,  -1], dtype = 'float')
+pncode2 = np.array([-1,   1,  -1,  -1,   1,   1,  -1,   1,  -1,   1,   1,   1,   1,  -1,  -1], dtype = 'float')
+pncode3 = np.array([ 1,  -1,  -1,   1,   1,  -1,   1,  -1,   1,   1,   1,   1,  -1,  -1,  -1], dtype = 'float')
+pncode4 = np.array([-1,  -1,   1,   1,  -1,   1,  -1,   1,   1,   1,   1,  -1,  -1,  -1,   1], dtype = 'float')
+pncode5 = np.array([-1,   1,   1,  -1,   1,  -1,   1,   1,   1,   1,  -1,  -1,  -1,   1,  -1], dtype = 'float')
+pncode6 = np.array([ 1,   1,  -1,   1,  -1,   1,   1,   1,   1,  -1,  -1,  -1,   1,  -1,  -1], dtype = 'float')
+pncode7 = np.array([ 1,  -1,   1,  -1,   1,   1,   1,   1,  -1,  -1,  -1,   1,  -1,  -1,   1], dtype = 'float')
+pncode8 = np.array([-1,   1,  -1,   1,   1,   1,   1,  -1,  -1,  -1,   1,  -1,  -1,   1,   1], dtype = 'float')
+pncode9 = np.array([ 1,  -1,   1,   1,   1,   1,  -1,  -1,  -1,   1,  -1,  -1,   1,   1,  -1], dtype = 'float')
 
 # declare of  placeholder
 x  = tf.placeholder(tf.float32, shape=(None, pixels), name="x") # image data
-y_ = tf.placeholder(tf.float32, shape=(None, nums), name="y_")  # label (teaching data)
+y_ = tf.placeholder(tf.float32, shape=(None, bit_length), name="y_")  # label (teaching data)
+pn_ = tf.placeholder(tf.float32, shape=(bit_length, nums), name="pn_")  # all label
+y_org = tf.placeholder(tf.float32, shape=(None, nums), name="y_org")  # original label (teaching data)
 
 # initialize for weight and bais [-0.1 ~ 0.1] gauss distribution
 def weight_variable(name, shape):
@@ -80,9 +106,10 @@ with tf.name_scope('dropout') as scope:
 
 # reading layer
 with tf.name_scope('readout') as scope:
-    W_fc2 = weight_variable('fc2', [1024, nums])
-    b_fc2 = bias_variable('fc2', nums)
-    y_conv = tf.nn.softmax(tf.matmul(h_fc_drop, W_fc2) + b_fc2)
+    # output dimension: 15
+    W_fc2 = weight_variable('fc2', [1024, bit_length])
+    b_fc2 = bias_variable('fc2', bit_length)
+    y_conv = 2.0*tf.nn.sigmoid(tf.matmul(h_fc_drop, W_fc2) + b_fc2) - 1.0
 
 # loss function and training of the network
 with tf.name_scope('loss') as scope:
@@ -97,14 +124,44 @@ with tf.name_scope('training') as scope:
 
 # evaluation of the network
 with tf.name_scope('predict') as scope:
-    # setting 1 to the second param, find the max row number in each column
-    predict_step = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
-    # reduce_mean: calculate the mean value in all the array
+    # corr_temp = tf.diag_part(tf.matmul(y_, tf.transpose(y_conv)))/bit_length
+    # corr_bin = tf.greater(corr_temp, 0.5)
+    # accuracy_step = tf.reduce_mean(tf.cast(corr_bin, tf.float32))
+    y_est = tf.matmul(y_conv, tf.cast(pn_, tf.float32))
+    predict_step = tf.equal(tf.argmax(y_est, 1), tf.argmax(y_org, 1))
     accuracy_step = tf.reduce_mean(tf.cast(predict_step, tf.float32))
 
+
+
 # setting of feed_dict (parameter)
-def set_feed(images, labels, prob):
-    return {x: images, y_: labels, keep_prob: prob}
+def set_feed(images, labels, prob, pn):
+
+    pncode = np.zeros((0, bit_length))
+    for i in range(labels.shape[0]):
+
+        if (labels[i,:] == [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]).all():
+            pncode = np.r_[pncode, pncode0.reshape(1,-1)]
+        elif (labels[i,:] == [0, 1, 0, 0, 0, 0, 0, 0, 0, 0]).all():
+            pncode = np.r_[pncode, pncode1.reshape(1,-1)]
+        elif (labels[i,:] == [0, 0, 1, 0, 0, 0, 0, 0, 0, 0]).all():
+            pncode = np.r_[pncode, pncode2.reshape(1,-1)]
+        elif (labels[i,:] == [0, 0, 0, 1, 0, 0, 0, 0, 0, 0]).all():
+            pncode = np.r_[pncode, pncode3.reshape(1,-1)]
+        elif (labels[i,:] == [0, 0, 0, 0, 1, 0, 0, 0, 0, 0]).all():
+            pncode = np.r_[pncode, pncode4.reshape(1,-1)]
+        elif (labels[i,:] == [0, 0, 0, 0, 0, 1, 0, 0, 0, 0]).all():
+            pncode = np.r_[pncode, pncode5.reshape(1,-1)]
+        elif (labels[i,:] == [0, 0, 0, 0, 0, 0, 1 , 0, 0, 0]).all():
+            pncode = np.r_[pncode, pncode6.reshape(1,-1)]
+        elif (labels[i,:] == [0, 0, 0, 0, 0, 0, 0, 1, 0, 0]).all():
+            pncode = np.r_[pncode, pncode7.reshape(1,-1)]
+        elif (labels[i,:] == [0, 0, 0, 0, 0, 0, 0, 0, 1, 0]).all():
+            pncode = np.r_[pncode, pncode8.reshape(1,-1)]
+        elif (labels[i,:] == [0, 0, 0, 0, 0, 0, 0, 0, 0, 1]).all():
+            pncode = np.r_[pncode, pncode9.reshape(1,-1)]
+
+    # print(pncode.shape)
+    return {x: images, y_: pncode, y_org : labels, keep_prob: prob, pn_: pn}
 
 # start session
 with tf.Session() as sess:
@@ -113,7 +170,8 @@ with tf.Session() as sess:
     # for TensorBoard
     tw = tf.summary.FileWriter('log_dir', graph=sess.graph)
     # create the feed for test
-    test_fd = set_feed(mnist.test.images, mnist.test.labels, 1)
+    pn_all = np.c_[pncode0, pncode1, pncode2, pncode3, pncode4, pncode5, pncode6, pncode7, pncode8, pncode9]
+    test_fd = set_feed(mnist.test.images, mnist.test.labels, 1, pn_all)
 
     # start training
     for step in range(10000):
@@ -122,7 +180,7 @@ with tf.Session() as sess:
         # and once finish to the end, it will be back to the start and repeat the reading again
         batch = mnist.train.next_batch(50)
         # batch[0] image, batch[1] label
-        fd = set_feed(batch[0], batch[1], 0.5)
+        fd = set_feed(batch[0], batch[1], 0.5, pn_all)
         _, loss = sess.run([train_step, mean_square_error], feed_dict=fd)
         if step % 100 == 0:
             acc = sess.run(accuracy_step, feed_dict=test_fd)
