@@ -40,7 +40,7 @@ with tf.name_scope('conv1') as scope:
     b_conv1 = bias_variable('conv1', 32)
     # input x is transferred to x_image which is 4 dimension tensor [batch, in_height, in_width, in_channels]
     x_image = tf.reshape(x, [-1, 28, 28, 1])
-    # W_conv1::4 dimension tensor [filter_height, filter_width, in_channels, channel_multiplier]
+    # W_conv1::4 dimension tensor [filter_height, filter_width, in_channels, out_channels]
     # relu has sparse effect and make more faster learning
     h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
 
